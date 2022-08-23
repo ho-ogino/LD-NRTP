@@ -1,0 +1,215 @@
+--- IPLPATCH.ASM	2016-11-11 01:02:08.000000000 +0900
++++ LDIPLPATCH.ASM	2022-08-23 08:56:51.106050100 +0900
+@@ -3,59 +3,38 @@
+ 
+ ;HSS再起動対応版、CTS信号がOFFになると0B820Hにジャンプします。
+ 
+-NRTDRV_LOADADRS	EQU	1800H
+-DRVINI		EQU	NRTDRV_LOADADRS
+-MPLAY		EQU	NRTDRV_LOADADRS+003H
+-MSTOP		EQU	NRTDRV_LOADADRS+006H
+-MFADE		EQU	NRTDRV_LOADADRS+009H
+-MTEST		EQU	NRTDRV_LOADADRS+00FH
+-MPLAYD		EQU	NRTDRV_LOADADRS+012H
+-VINIT		EQU	NRTDRV_LOADADRS+015H
+-VMAIN		EQU	NRTDRV_LOADADRS+018H
+-INVREG		EQU	NRTDRV_LOADADRS+01BH
+-
+-
+-	ORG	$0000
+-	JP	MAIN
+-
+-	ORG	$0018
+-CALLBIOS:			; (RST 18) BIOSコール [9byte] BC=アドレス
+-	CALL	$001b		; 0018		cd xx xx
+-	PUSH	BC		; 001B		c5
+-	LD	B, $1d		; 001C		06 1d	1dxx=IPL(BIOS) ROM ON
+-	OUT	(C), B		; 001E		ed 41
+-	RET			; 0020	10	c9
++; NRTDRV_LOADADRS	EQU	1800H
++; DRVINI		EQU	NRTDRV_LOADADRS
++; MPLAY		EQU	NRTDRV_LOADADRS+003H
++; MSTOP		EQU	NRTDRV_LOADADRS+006H
++; MFADE		EQU	NRTDRV_LOADADRS+009H
++; MTEST		EQU	NRTDRV_LOADADRS+00FH
++; MPLAYD		EQU	NRTDRV_LOADADRS+012H
++; VINIT		EQU	NRTDRV_LOADADRS+015H
++; VMAIN		EQU	NRTDRV_LOADADRS+018H
++; INVREG		EQU	NRTDRV_LOADADRS+01BH
+ 
+-	ORG	$0066		; NMI
+-	JP	NMI
+-
+-	ORG	0100H-4
+-;
+-;-----------------------------------------------------------------------
+-;LOADM header
+-	dw	$+4
+-	dw	END_P
+-;-----------------------------------------------------------------------
+-;
+-	JR	MAIN
++DISPNRT:
++	JR	NPMAIN
+ 
+ VUSE:	DB	255	;演奏モニタを使用するかどうか
+ 			;(0=しない 0以外=する)
+-HUSE:	DB	127	;HSSIO環境でLOADMをオートリブートするかどうか
++HUSE:	DB	0	;HSSIO環境でLOADMをオートリブートするかどうか
+ 			;(0=しない 127=NMIで手動リブート 255=オート)
+ 
+-VER:
+-	DB	"IPLPATCH.BIN (version 000000-000)"
+-	DB	  "NRTDRV.BIN (version 000000-000)"
++NVER:
++	DB	    "NRTP.COM (version 202208-001)"
++	DB	  "NRTDRV.BIN (version 200110-234)"
+ 
+ PCG:
+ 	JP	PCGSET		; 0144H 
+ 
+-MAIN:
++NPMAIN:
+ 	DI
+-	LD	SP,0000H
+-	XOR	A
+-	LD	I,A
++; SPは書き換えず、割り込みレジスタも変更せずに実行する
++;	LD	SP,0000H
++;	XOR	A
++;	LD	I,A
+ ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+ 	LD	A,(HUSE)
+ 	CP	255
+@@ -64,12 +43,12 @@
+ 	CALL	HWCHEK
+ 	CALL	CRTCINI
+ 	CALL	TEXTCLR
+-	CALL	SETNMI
++	; CALL	SETNMI
+ 	CALL	DRVINI
+-	CALL	INVREG
++	CALL	NRTDRV_INVREG
+ 	LD	A,(VUSE)
+ 	OR	A
+-	JR	NZ,MAIN0
++	JR	NZ,NPMAIN0
+ 
+ 	LD	BC,2007H	;テキストアトリビュートの位置
+ 	LD	L,00100111B	;アトリビュートをPCGに
+@@ -96,7 +75,7 @@
+ 	DEC	E
+ 	JR	NZ,ATRL1
+ 	LD	A,D
+-MAIN0:
++NPMAIN0:
+ 	CALL	VINIT
+ 	CALL	TEXTWR
+ 
+@@ -122,19 +101,39 @@
+ 	CALL	Z,CTSCHK
+ ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+ 
++	; ESCで終了
++
++	; キー押されてる？
++	LD	C,00BH
++	CALL	BDOS
++	CP	255
++	JR	NZ,NOKEY
++
++	; コンソール直接入力
++	LD	E,255
++	LD	C,006h
++	CALL	BDOS
++	CP	01BH		; ESC
++	JR	NZ,NOKEY
++
++	RET			; 終了
++NOKEY:
+ 	CALL	JOY
+ 	LD	A,E
+ 	AND	40H		;トリガー1が押されたらA=0になる
+ 	JR	Z,INIT1		;トリガー1が押されたら再生/停止ルーチンに飛ぶ
+-	LD	A,E
+-	AND	20H
+-	JR	Z,TESTP		;トリガー2が押されたらテストトーン再生ルーチンに飛ぶ
+-	LD	A,E
+-	AND	10H
+-	JR	NZ,INIT		;NMIスイッチが押されるまでループ
+-	LD	A,(HUSE)
+-	CP	127
+-	JP	Z,REBOOT
++
++;	テストトーン、リブート処理はカットしておく
++;	LD	A,E
++;	AND	20H
++;	JR	Z,TESTP		;トリガー2が押されたらテストトーン再生ルーチンに飛ぶ
++;	LD	A,E
++;	AND	10H
++;	JR	NZ,INIT		;NMIスイッチが押されるまでループ
++;	LD	A,(HUSE)
++;	CP	127
++;	JP	Z,REBOOT
++	JR	INIT
+ 
+ TESTP:				;テストトーンを発音
+ 	CALL	MTCLR
+@@ -167,7 +166,7 @@
+ 	CP	255
+ 	JR	NZ,LOOP1	;トリガーが押されている間は待つ (連続で実行されるのを防ぐため)
+ 
+-	JR	INIT
++	JP	INIT
+ 
+ JOY:
+ 	LD	A,(NMIFLG)
+@@ -297,9 +296,9 @@
+ 	RETN
+ 
+ TEXTWR:
+-	LD	HL,VER
+-	LD	BC,385FH
+-	LD	E,33
++	LD	HL,NVER
++	LD	BC,3863H
++	LD	E,29
+ 	CALL	TEXTPUT
+ 	LD	BC,38B1H
+ 	LD	E,31
+@@ -584,7 +583,7 @@
+ 
+ ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+ ;SIO初期化、CTSセンスなので特に初期化は不要
+-SIOINI
++SIOINI:
+ 	RET
+ ;リブート、曲を停止してからIPLローダへ飛ばす
+ REBOOT:
+@@ -638,7 +637,6 @@
+ ;HSS IPLローダへジャンプします
+ 	LD	SP,0000H
+ 	JP	0B820H
+-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+ 
+ PCGSET:
+ 	DI			; 割り込み禁止
+@@ -841,8 +839,10 @@
+ TSTOP:	DB	"Stop"
+ INFO1:	DB	"[Trigger 1]"
+ INFO2:	DB	"Play/Stop"
+-INFO3:	DB	"[Trigger 2] or [NMI]"
+-INFO4:	DB	"Test Tone"
++;INFO3:	DB	"[Trigger 2] or [NMI]"
++;INFO4:	DB	"Test Tone"
++INFO3:	DB	"                    "
++INFO4:	DB	"         "
+ INFO5:	DB	"[NMI Switch]"
+ INFO6:	DB	"Reboot Loader"
+ 
+@@ -1026,5 +1026,3 @@
+ 
+ ;
+ END_P:
+-
+-END

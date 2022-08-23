@@ -1,0 +1,846 @@
+--- NRTDRV.ASM	2020-01-10 21:51:20.000000000 +0900
++++ LDNRTDRV.ASM	2022-08-23 00:29:47.585974600 +0900
+@@ -7,64 +7,79 @@
+ DEFADR		EQU	04000H	;曲データのデフォルトアドレス
+ INCLUDE_PANEL	EQU	1	; 0=デフォルトの鍵盤表示を含まない/0以外=含む
+ 
+-VECOFS	EQU	58H	;割り込みベクタのオフセット
++;VECOFS	EQU	58H	;割り込みベクタのオフセット
++VECOFS	EQU	0C0H	;割り込みベクタのオフセット(CTC0, CTC1, CTC2, CTC3, SUBCPU の順で並ぶ)
+ 
+ WSIZE	EQU	56	;各チャンネルのワークエリアのサイズ
+ RWSIZE	EQU	32	;各チャンネルのリピートワークのサイズ
+-PCGSET	EQU	0144H	;IPLPATCHのPCG定義ルーチン用エントリ
++;PCGSET	EQU	0144H	;IPLPATCHのPCG定義ルーチン用エントリ
+ AMD1	EQU	03DFCH	;AMDワーク OPM#1
+ PMD1	EQU	03DFDH	;PMDワーク OPM#1
+ AMD2	EQU	03DFEH	;AMDワーク OPM#2
+ PMD2	EQU	03DFFH	;PMDワーク OPM#2
+ 
+ 
+-MACRO GETDATA_A		; データポインタからAレジスタにデータを取得
++; LSX-Dodgersの割り込みテーブル
++; I = EC
++; CTC0 = C0
++; CTC1 = C2
++; CTC2 = C4
++; CTC3 = C6
++; INTVEC(Key) = C8
++
++;  ECC0  D2D6          	CTC0:	DW	INTCTCE
++;  ECC2  D2D6          	CTC1:	DW	INTCTCE
++;  ECC4  1FD7          	CTC2:	DW	INTCTC2
++;  ECC6  D2D6          	CTC3:	DW	INTCTCE
++;  ECC8  B9D6          	INTVEC:	DW	INT
+ 
+-IF GVRAM_MODE = 0
++GETDATA_A MACRO		; データポインタからAレジスタにデータを取得
++
++#IF GVRAM_MODE == 0
+ 	LD	A,(HL)
+-ELSE
++#ELSE
+ 	PUSH	BC
+ 	LD	B, H
+ 	LD	C, L
+ 	IN	A,(C)
+ 	POP	BC
+-ENDIF
++#ENDIF
+ ENDM
+ 
+ 
+-MACRO GETDATA_C		; データポインタからCレジスタにデータを取得
+-IF GVRAM_MODE = 0
++GETDATA_C MACRO		; データポインタからCレジスタにデータを取得
++#IF GVRAM_MODE == 0
+ 	LD	C,(HL)
+-ELSE
++#ELSE
+ 	PUSH	BC
+ 	LD	B, H
+ 	LD	C, L
+ 	IN	A,(C)
+ 	POP	BC
+ 	LD	C, A
+-ENDIF
++#ENDIF
+ ENDM
+ 
+ 
+-MACRO GETDATA_D		; データポインタからDレジスタにデータを取得
+-IF GVRAM_MODE = 0
++GETDATA_D MACRO		; データポインタからDレジスタにデータを取得
++#IF GVRAM_MODE == 0
+ 	LD	D,(HL)
+-ELSE
++#ELSE
+ 	PUSH	BC
+ 	LD	B, H
+ 	LD	C, L
+ 	IN	D,(C)
+ 	POP	BC
+-ENDIF
++#ENDIF
+ ENDM
+ 
+ 
+-MACRO GETDATA_DE	; データポインタからDEレジスタにデータを取得
+-IF GVRAM_MODE = 0
++GETDATA_DE MACRO	; データポインタからDEレジスタにデータを取得
++#IF GVRAM_MODE == 0
+ 	LD	E,(HL)
+ 	INC	HL
+ 	LD	D,(HL)
+-ELSE
++#ELSE
+ 	PUSH	BC
+ 	LD	B, H
+ 	LD	C, L
+@@ -73,16 +88,16 @@
+ 	INC	HL
+ 	IN	D,(C)
+ 	POP	BC
+-ENDIF
++#ENDIF
+ ENDM
+ 
+ 
+-MACRO GETDATA_BC	; データポインタからBCレジスタにデータを取得
+-IF GVRAM_MODE = 0
++GETDATA_BC MACRO	; データポインタからBCレジスタにデータを取得
++#IF GVRAM_MODE == 0
+ 	LD	C,(HL)
+ 	INC	HL
+ 	LD	B,(HL)
+-ELSE
++#ELSE
+ 	PUSH	AF
+ 	LD	B, H
+ 	LD	C, L
+@@ -92,16 +107,16 @@
+ 	IN	B,(C)
+ 	LD	C, A
+ 	POP	AF
+-ENDIF
++#ENDIF
+ ENDM
+ 
+ 
+-MACRO GETDATA_AD	; データポインタからADレジスタにデータを取得
+-IF GVRAM_MODE = 0
++GETDATA_AD MACRO	; データポインタからADレジスタにデータを取得
++#IF GVRAM_MODE == 0
+ 	LD	D,(HL)
+ 	INC	HL
+ 	LD	A,(HL)
+-ELSE
++#ELSE
+ 	PUSH	BC
+ 	LD	B, H
+ 	LD	C, L
+@@ -110,6 +125,7 @@
+ 	INC	HL
+ 	IN	A,(C)
+ 	POP	BC
++#ENDIF
+ ENDM
+ 
+ 
+@@ -128,17 +144,17 @@
+ 	JP	DRVINI
+ 	JP	MTEST
+ 	JP	MPLAYD
+-IF INCLUDE_PANEL != 0
++#IF INCLUDE_PANEL != 0
+ 	JP	VINIT
+ 	JP	VMAIN
+-ELSE
++#ELSE
+ 	DS	6
+-ENDIF
+-IF REC_REGMAP != 0
++#ENDIF
++#IF REC_REGMAP != 0
+ 	JP	INVREG
+-ELSE
++#ELSE
+ 	DS	3
+-ENDIF
++#ENDIF
+ 
+ ;------	ワークエリア
+ 
+@@ -249,7 +265,7 @@
+ CH5WRK:	DS	WSIZE
+ CH6WRK:	DS	WSIZE
+ CH7WRK:	DS	WSIZE
+-IF OPM8_MODE=0
++#IF OPM8_MODE == 0
+ CH8WRK:	DS	WSIZE
+ CH9WRK:	DS	WSIZE
+ CHAWRK:	DS	WSIZE
+@@ -258,7 +274,7 @@
+ CHDWRK:	DS	WSIZE
+ CHEWRK:	DS	WSIZE
+ CHFWRK:	DS	WSIZE
+-ENDIF
++#ENDIF
+ PSG0W:	DS	WSIZE
+ PSG1W:	DS	WSIZE
+ PSG2W:	DS	WSIZE
+@@ -291,7 +307,7 @@
+ CH5RW:	DS	RWSIZE
+ CH6RW:	DS	RWSIZE
+ CH7RW:	DS	RWSIZE
+-IF OPM8_MODE=0
++#IF OPM8_MODE == 0
+ CH8RW:	DS	RWSIZE
+ CH9RW:	DS	RWSIZE
+ CHARW:	DS	RWSIZE
+@@ -300,7 +316,7 @@
+ CHDRW:	DS	RWSIZE
+ CHERW:	DS	RWSIZE
+ CHFRW:	DS	RWSIZE
+-ENDIF
++#ENDIF
+ PSG0RW:	DS	RWSIZE
+ PSG1RW:	DS	RWSIZE
+ PSG2RW:	DS	RWSIZE
+@@ -452,9 +468,9 @@
+ MPLAY:
+ 	CALL	MSTOP
+ 
+-IF GVRAM_MODE > 1
++#IF GVRAM_MODE > 1
+ 	CALL	GVRAM1ACCESS
+-ENDIF
++#ENDIF
+ 
+ 	LD	A,I
+ 	LD	H,A
+@@ -568,9 +584,9 @@
+ 	LD	A,0FBH
+ 	LD	(INT_EI),A	;割り込みルーチン最後のEIを戻す
+ 
+-IF GVRAM_MODE > 1
++#IF GVRAM_MODE > 1
+ 	CALL	GVRAM0ACCESS
+-ENDIF
++#ENDIF
+ 
+ 	EI
+ 	RET
+@@ -584,9 +600,9 @@
+ 	INC	HL
+ 	INC	HL
+ 
+-IF GVRAM_MODE > 1
++#IF GVRAM_MODE > 1
+ 	CALL	GVRAM1ACCESS
+-ENDIF
++#ENDIF
+ 	GETDATA_A
+ 
+ 	LD	C,A
+@@ -635,7 +651,7 @@
+ 	CALL	MINIT		;700-701HのOPMワーク初期化
+ 
+ MSTOP3:
+-IF OPM8_MODE=0
++#IF OPM8_MODE == 0
+ 	LD	A,(CTCFLG)
+ 	AND	00000010B
+ 	JR	Z,MSTOP4
+@@ -644,7 +660,7 @@
+ 	LD	BC,709H
+ 	LD	(OPMIO),BC
+ 	CALL	MINIT		;708-709HのOPMワーク初期化
+-ENDIF
++#ENDIF
+ 
+ MSTOP4:
+ 	LD	HL,(BGMADR)
+@@ -664,9 +680,9 @@
+ 	LD	(TOTALCOUNT),A	;内部カウンタを0に
+ 	LD	(TOTALCOUNT+1),A
+ 
+-IF GVRAM_MODE > 1
++#IF GVRAM_MODE > 1
+ 	CALL	GVRAM0ACCESS
+-ENDIF
++#ENDIF
+ 
+ 	EI
+ 	RET
+@@ -683,19 +699,19 @@
+ 	LD	B,8		;8回ループ (全チャンネル分の初期設定のため)
+ MINITL:
+ 	CALL	OPMRST
+-IF GVRAM_MODE > 1
++#IF GVRAM_MODE > 1
+ 	CALL	GVRAM1ACCESS
+-ENDIF
++#ENDIF
+ 	GETDATA_DE		;各チャンネルのポインタを設定
+-IF GVRAM_MODE > 1
++#IF GVRAM_MODE > 1
+ 	CALL	GVRAM0ACCESS
+-ENDIF
++#ENDIF
+ 	INC	HL
+ 
+ 	PUSH	HL
+ 	LD	HL,(BGMADR)
+ 	ADD	HL,DE
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H
+ 	POP	HL
+ 
+@@ -782,20 +798,20 @@
+ PINIT:
+ 	LD	B,3		;3回ループ (全チャンネル分の初期設定のため)
+ PINITL:
+-IF GVRAM_MODE > 1
++#IF GVRAM_MODE > 1
+ 	CALL	GVRAM1ACCESS
+-ENDIF
++#ENDIF
+ 	GETDATA_DE		;各チャンネルのポインタを設定
+-IF GVRAM_MODE > 1
++#IF GVRAM_MODE > 1
+ 	CALL	GVRAM0ACCESS
+-ENDIF
++#ENDIF
+ 
+ 	INC	HL
+ 
+ 	PUSH	HL
+ 	LD	HL,(BGMADR)
+ 	ADD	HL,DE
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H
+ 	POP	HL
+ 
+@@ -944,7 +960,7 @@
+ 	JP	MPLAY
+ 
+ ;------	仮想OPMレジスタ無効化
+-IF REC_REGMAP != 0
++#IF REC_REGMAP != 0
+ INVREG:
+ 	DI
+ 	LD	HL,NOPR1
+@@ -955,7 +971,7 @@
+ 	RET
+ NOPR1:
+ 	JP	WOPMM
+-ENDIF
++#ENDIF
+ 
+ ;------ 割り込みルーチン (CTC0&3)
+ 
+@@ -975,9 +991,9 @@
+ 	EX	AF,AF'
+ 	PUSH	AF
+ 
+-IF GVRAM_MODE > 1
++#IF GVRAM_MODE > 1
+ 	CALL	GVRAM1ACCESS
+-ENDIF
++#ENDIF
+ 
+ 	; TOTALCOUNT(2byte値)をインクリメントする
+ 	LD	HL, TOTALCOUNT		;10
+@@ -999,7 +1015,7 @@
+ 	CALL	MAIN		;700-701HのFM音源処理
+ 
+ INTRP0:
+-IF OPM8_MODE=0
++#IF OPM8_MODE == 0
+ 	LD	A,(CTCFLG)
+ 	AND	00000010B
+ 	JR	Z,INTRP1
+@@ -1008,7 +1024,7 @@
+ 	LD	HL,709H
+ 	LD	(OPMIO),HL
+ 	CALL	MAIN		;708-709HのFM音源処理
+-ENDIF
++#ENDIF
+ 
+ INTRP1:
+ 	LD	IX,PSG0W
+@@ -1048,11 +1064,11 @@
+ 
+ 	LD	HL,CH0WRK+47
+ 
+-IF OPM8_MODE = 0
++#IF OPM8_MODE == 0
+ 	LD	B,19
+-ELSE
++#ELSE
+ 	LD	B,8+3
+-ENDIF
++#ENDIF
+ 
+ FADES:
+ 	PUSH	BC
+@@ -1071,9 +1087,9 @@
+ 	POP	DE
+ 	POP	BC
+ 
+-IF GVRAM_MODE > 1
++#IF GVRAM_MODE > 1
+ 	CALL	GVRAM0ACCESS
+-ENDIF
++#ENDIF
+ 
+ INTEND2:
+ 	POP	AF
+@@ -1119,13 +1135,13 @@
+ 	OR	A
+ 	JP	Z,COMCHK	;次の1バイトが音長カウンタじゃなければコマンド判定
+ 
+-	LD	L,(IX)		;データポインタをHLレジスタに
++	LD	L,(IX+0)		;データポインタをHLレジスタに
+ 	LD	H,(IX+1)
+ 
+ 	GETDATA_A		;ポインタ位置の値をAレジスタに読み込む
+ 
+ 	INC	HL
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;ポインタをインクリメントして保存
+ 	CP	255
+ 	JR	Z,MAIN1
+@@ -1202,11 +1218,11 @@
+ 	OR	A
+ 	JP	Z,PCOM		;次の1バイトが音長カウンタじゃなければコマンド判定
+ 
+-	LD	L,(IX)		;データポインタをHLレジスタに
++	LD	L,(IX+0)		;データポインタをHLレジスタに
+ 	LD	H,(IX+1)
+ 	GETDATA_A		;ポインタ位置の値をAレジスタに読み込む
+ 	INC	HL
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;ポインタをインクリメントして保存
+ 	CP	255
+ 	JR	Z,PMAIN1
+@@ -1310,7 +1326,7 @@
+ ;------	コマンド判定 (OPM)
+ 
+ COMCHK:
+-	LD	L,(IX)		;これから処理するデータのポインタをHLレジスタに
++	LD	L,(IX+0)		;これから処理するデータのポインタをHLレジスタに
+ 	LD	H,(IX+1)
+ 	GETDATA_A		;コマンド番号をAレジスタに読み込む
+ 	INC	HL
+@@ -1332,7 +1348,7 @@
+ 	LD	A,255
+ TRSTOP:
+ 	LD	(IX+47),A	;未定義コマンドならトラック停止フラグを立てる
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;ポインタを保存
+ 	JP	MAINL
+ 
+@@ -1396,7 +1412,7 @@
+ ;------	コマンド判定 (PSG)
+ 
+ PCOM:
+-	LD	L,(IX)		;これから処理するデータのポインタをHLレジスタに
++	LD	L,(IX+0)		;これから処理するデータのポインタをHLレジスタに
+ 	LD	H,(IX+1)
+ 
+ 	GETDATA_A		;コマンド番号をAレジスタに読み込む
+@@ -1417,7 +1433,7 @@
+ 
+ 	LD	A,255
+ 	LD	(IX+47),A	;未定義コマンドならトラック停止フラグを立てる
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;ポインタを保存
+ 	JP	PMAINL
+ 
+@@ -1494,7 +1510,7 @@
+ 	LD	(IX+3),A	;音長カウンタ値をワークに保存
+ 
+ 	INC	HL
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;ポインタをインクリメントして保存
+ 
+ 	LD	A,(OPMIO)
+@@ -1535,7 +1551,7 @@
+ 
+ KEYONC:
+ 	INC	HL
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;ポインタをインクリメントして保存
+ 
+ 	SRL	B
+@@ -1573,7 +1589,7 @@
+ 	LD	A,(IX+4)	;デチューン値をAレジスタに
+ 	CP	128
+ 	JP	C,KEYON5	;プラス値ならKEYON5に
+-KEYON7
++KEYON7:
+ 	DEC	B
+ 	ADD	A,64
+ 	JP	NC,KEYON7	;デチューン値がキャリーオーバーするまでノートナンバー減算
+@@ -1735,7 +1751,7 @@
+ 	LD	(IX+46),A	;1カウントならキーオフフラグを立てる
+ KEYLC:
+ 	INC	HL
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;ポインタをインクリメントして保存
+ 
+ 	LD	A,(IX+16)	;Qの値を読み込む
+@@ -1747,7 +1763,7 @@
+ ;------	強制キーオフ
+ 
+ KKOFF:
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;ポインタを保存
+ 
+ 	LD	D,8		;OPMレジスタ08H (キーオン/オフ)
+@@ -1773,7 +1789,7 @@
+ 	JP	COMCHK
+ 
+ PKKOFF:
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;ポインタを保存
+ 
+ 	XOR	A
+@@ -1885,7 +1901,7 @@
+ 	LD	(IX+46),A
+ PKOF4:
+ 	INC	HL
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;ポインタをインクリメントして保存
+ 
+ 	SRL	B
+@@ -2088,7 +2104,7 @@
+ PKEYLC:
+ 	LD	(IX+46),A
+ 	INC	HL
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;ポインタをインクリメントして保存
+ 
+ 	LD	A,(IX+16)	;Qの値を読み込む
+@@ -2113,7 +2129,7 @@
+ 	GETDATA_BC		;音色データの相対アドレスをBCに
+ 
+ 	INC	HL
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;ポインタを保存
+ 	LD	HL,(BGMADR)
+ 	ADD	HL,BC		;音色データの絶対アドレスをHLに
+@@ -2137,7 +2153,7 @@
+ 	GETDATA_BC		;音色データの相対アドレスをBCに
+ 
+ 	INC	HL
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;ポインタを保存
+ 	LD	HL,(BGMADR)
+ 	ADD	HL,BC		;音色データの絶対アドレスをHLに
+@@ -2150,7 +2166,7 @@
+ 	GETDATA_BC		;音色データの相対アドレスをBCに
+ 
+ 	INC	HL
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;ポインタを保存
+ 	LD	HL,(BGMADR)
+ 	ADD	HL,BC		;音色データの絶対アドレスをHLに
+@@ -2222,7 +2238,7 @@
+ 	GETDATA_BC	;音色データの相対アドレスをBCに
+ 
+ 	INC	HL
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;ポインタを保存
+ 	LD	HL,(BGMADR)
+ 	ADD	HL,BC		;音色データの絶対アドレスをHLに
+@@ -2332,7 +2348,7 @@
+ 	GETDATA_BC		;音色データの相対アドレスをBCに
+ 
+ 	INC	HL
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;ポインタを保存
+ 
+ 	LD	HL,(BGMADR)
+@@ -2395,7 +2411,7 @@
+ 	PUSH	HL
+ 	LD	HL,(BGMADR)
+ 	ADD	HL,BC
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;マクロデータの開始位置にポインタを設定
+ 	POP	HL
+ 	JP	CCRET1
+@@ -2403,7 +2419,7 @@
+ ;------	レガートON
+ 
+ LEGON:
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;ポインタを保存
+ 
+ 	LD	A,1
+@@ -2413,7 +2429,7 @@
+ ;------	レガートOFF
+ 
+ LEGOFF:
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;ポインタを保存
+ 
+ 	XOR	A
+@@ -2427,7 +2443,7 @@
+ 	LD	(IX+13),A	;ボリューム値をワークに保存
+ 
+ 	INC	HL
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;ポインタをインクリメントして保存
+ 
+ 	CALL	VOLSUB
+@@ -2508,7 +2524,7 @@
+ 	GETDATA_A		;オペマスク値をAに
+ 
+ 	INC	HL
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;ポインタをインクリメントして保存
+ 
+ 	CALL	VOLOPS
+@@ -2666,14 +2682,14 @@
+ 	GETDATA_D		;指定リピート回数をDに
+ 
+ 	INC	HL
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;ポインタをインクリメントして保存
+ 
+ 	CALL	RADRS
+ 
+ 	LD	(HL),D		;指定リピート回数をリピートワークに保存
+ 	INC	HL
+-	LD	A,(IX)
++	LD	A,(IX+0)
+ 	LD	(HL),A
+ 	INC	HL
+ 	LD	A,(IX+1)
+@@ -2684,7 +2700,7 @@
+ ;------- リピート終了
+ 
+ REND:
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;ポインタを保存
+ 
+ 	PUSH	HL
+@@ -2703,7 +2719,7 @@
+ REND1:
+ 	INC	HL
+ 	LD	A,(HL)
+-	LD	(IX),A
++	LD	(IX+0),A
+ 	INC	HL
+ 	LD	A,(HL)
+ 	LD	(IX+1),A	;リピート回数が0以外ならリピート開始アドレスにポインタを移す
+@@ -2718,7 +2734,7 @@
+ ;------- リピート脱出
+ 
+ RQUIT:
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;ポインタを保存
+ 
+ 	CALL	RADRS
+@@ -2735,7 +2751,7 @@
+ 	INC	HL
+ 	INC	HL
+ 	LD	A,(HL)
+-	LD	(IX),A
++	LD	(IX+0),A
+ 	INC	HL
+ 	LD	A,(HL)
+ 	LD	(IX+1),A	;リピート終了アドレスにポインタを移す
+@@ -2766,11 +2782,11 @@
+ 	CP	1
+ 	JR	Z, RADRS01
+ 
+-IF OPM8_MODE = 0
++#IF OPM8_MODE == 0
+ 	JR	C, RADRS02
+ 	LD	BC,CH8RW	;OPMIOが0でも1でもない場合
+ 	JR	RADRS2
+-ENDIF
++#ENDIF
+ 
+ RADRS02:
+ 	LD	BC,PSG0RW	;OPMIOが0の場合
+@@ -2873,7 +2889,7 @@
+ 	LD	(ZCOUNT),A
+ 	JR	NZ,ZCOML
+ 
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;ポインタを保存
+ 	JP	COMCHK
+ 
+@@ -2890,7 +2906,7 @@
+ 	LD	(ZCOUNT),A
+ 	JR	NZ,PZCOML
+ 
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;ポインタを保存
+ 	JP	PCOM
+ 
+@@ -2940,7 +2956,7 @@
+ 
+ 	DJNZ	CSMCOM02
+ 
+-	LD	(IX), L
++	LD	(IX+0), L
+ 	LD	(IX+1), H	;ポインタを保存
+ 
+ 	JP	COMCHK
+@@ -3107,9 +3123,9 @@
+ REPLAY:
+ 	LD	C,E		;チャンネル番号をCに退避
+ 
+-IF GVRAM_MODE = 0
++#IF GVRAM_MODE == 0
+ 	LD	B,(HL)		;トラック番号をBに
+-ELSE
++#ELSE
+ 	PUSH	AF
+ 	PUSH	BC
+ 	LD	B, H
+@@ -3118,10 +3134,10 @@
+ 	POP	BC
+ 	LD	B, A
+ 	POP	AF
+-ENDIF
++#ENDIF
+ 
+ 	INC	HL
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;ポインタをインクリメントして保存
+ 
+ 	LD	HL,CH0WRK-WSIZE
+@@ -3163,7 +3179,7 @@
+ 	INC	HL
+ CCRET:
+ 	INC	HL
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;ポインタをインクリメントして保存
+ CCRET1:
+ 	LD	A,(OPMIO)
+@@ -3180,7 +3196,7 @@
+ 	OR	B
+ 	JR	Z,TRKE1		;マクロ復帰アドレスが0ならトラック終了、0以外ならマクロ終了
+ 
+-	LD	(IX),C
++	LD	(IX+0),C
+ 	LD	(IX+1),B	;ポインタをマクロ復帰アドレスに移動
+ 
+ 	XOR	A
+@@ -3194,7 +3210,7 @@
+ 
+ 	LD	HL,(BGMADR)
+ 	ADD	HL,BC
+-	LD	(IX),L
++	LD	(IX+0),L
+ 	LD	(IX+1),H	;ポインタをループポイントに移動
+ 	INC	(IX+2)		;ループカウンタをインクリメント
+ 	JP	CCRET1
+@@ -3229,7 +3245,7 @@
+ 	CALL	EFX		;700-701HのFM音源エフェクト処理
+ 
+ INT2R0:
+-IF OPM8_MODE=0
++#IF OPM8_MODE == 0
+ 	LD	A,(CTCFLG)
+ 	AND	00000010B
+ 	JR	Z,INT2R1
+@@ -3238,7 +3254,7 @@
+ 	LD	HL,709H
+ 	LD	(OPMIO),HL
+ 	CALL	EFX		;708-709HのFM音源エフェクト処理
+-ENDIF
++#ENDIF
+ 
+ INT2R1:
+ 	LD	IX,PSG0W
+@@ -4074,7 +4090,7 @@
+ 
+ WOPMBC:
+ WOPMV:
+-IF REC_REGMAP != 0
++#IF REC_REGMAP != 0
+ 	; 仮想レジスタに書き込み
+ 	PUSH	HL
+ 	LD	H, 3EH		; 仮想レジスタ開始アドレス
+@@ -4087,7 +4103,7 @@
+ WOPM02:
+ 	LD	(HL), A		; 仮想レジスタに書き込む
+ 	POP	HL
+-ENDIF
++#ENDIF
+ 
+ WOPMM:
+ 	EX	AF,AF'
+@@ -4141,7 +4157,7 @@
+ 	RET
+ 
+ 
+-IF GVRAM_MODE > 1
++#IF GVRAM_MODE > 1
+ 
+ GVRAM0ACCESS:
+ 	PUSH	BC
+@@ -4167,10 +4183,10 @@
+ 	POP	BC
+ 	RET
+ 
+-ENDIF
++#ENDIF
+ 
+ 
+-IF INCLUDE_PANEL != 0
++#IF INCLUDE_PANEL != 0
+ 
+ ;------	表示メイン
+ 
+@@ -4645,6 +4661,10 @@
+ 	DB	132,132,132,132,132,132,132,134	;30
+ 	DB	132,132,132,132,132,132,132,135	;31
+ 
+-ENDIF
++#ENDIF
++
++
++
++
+ 
+ 	END
+\ No newline at end of file
