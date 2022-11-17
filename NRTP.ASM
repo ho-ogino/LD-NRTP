@@ -36,14 +36,14 @@ FOPEN			EQU	$0f
 GETFSZ			EQU	$23
 PRINT			EQU	$09
 
-_CTC			EQU	$EC8C			; LSX-Dodgers 1.34
+_CTC			EQU	$F08C			; LSX-Dodgers 1.52
 
 ; LSX-Dodgersの割り込みベクタ群
-CTC0			EQU	$ECC0
-CTC1			EQU	$ECC2
-CTC2			EQU	$ECC4
-CTC3			EQU	$ECC6
-INTVEC			EQU	$ECC8
+CTC0			EQU	$F0C0
+CTC1			EQU	$F0C2
+CTC2			EQU	$F0C4
+CTC3			EQU	$F0C6
+INTVEC			EQU	$F0C8
 
 NRDADR		EQU	04000H				;曲データのデフォルトアドレス
 
@@ -81,6 +81,7 @@ OPENOK:
 
 	; レコードサイズぶん読み込む
 	LD	IX,$005C
+	LD	(IX+14),1	; レコードサイズ
 	LD	(IX+12),0	; カレント・ブロック
 	LD	(IX+32),0	; カレント・レコード
 	LD	(IX+33),0	; ランダム・レコード
