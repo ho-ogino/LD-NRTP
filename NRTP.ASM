@@ -81,12 +81,15 @@ OPENOK:
 
 	; レコードサイズぶん読み込む
 	LD	IX,$005C
-	LD	(IX+14),1	; レコードサイズ
-	LD	(IX+12),0	; カレント・ブロック
-	LD	(IX+32),0	; カレント・レコード
-	LD	(IX+33),0	; ランダム・レコード
+
+	LD	(IX+14),1	;レコードサイズを1にする
+	LD	(IX+15),0
+
+	LD	(IX+33),0	;ランダムレコードを0にする
 	LD	(IX+34),0
 	LD	(IX+35),0
+	LD	(IX+36),0
+
 	LD	HL,($005C+16)	; RECORD SIZE?
 	LD	DE,$005C
 	LD	C,$27		; Random Block Read
