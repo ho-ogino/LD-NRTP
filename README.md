@@ -6,6 +6,8 @@ LD-NRTP は、X1用のOS、LSX-Dodgersにて、OPM+PSGドライバ「NRTDRV」�
 
 NRTDRVを内部に組み込んでおり、簡易演奏モニタにて再生状態を表示しつつ再生します。
 
+対象のLSX-Dodgers: 1.52(以降)
+
 # 使い方
 ```
   NRTP [filepath(.NRD)]
@@ -37,5 +39,7 @@ ESCキーを押す事で再生を終了します。
 LD-NRTP は、NRTDRVを単純にアプリ化しただけのプログラムであるため、このツールによる良い部分は全て [NRTDRV developers](http://nrtdrv.sakura.ne.jp/index.cgi?page=FrontPage#p3) 様の手によるものです。
 
 # History
+* Version 202211-001 (2022/11/17)
+  * LSX-Dodgers 1.52対応
 * Version 202208-001 (2022/8/23)
   * 初版
